@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Condition Report — Used Car Listing Inspector</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="sheet">
+
+  <header class="report-head">
+    <div class="report-head__top">
+      <span class="eyebrow">Vehicle Condition Report</span>
+      <span class="report-no" id="reportNo">NO. 000000</span>
+    </div>
+    <h1>Know before you buy.</h1>
+    <p class="dek">Paste a listing link or the listing text. The inspector reads it, flags what's wrong, and tells you if it's a fair deal.</p>
+  </header>
+
+  <section class="intake" id="intake">
+
+    <div class="mode-toggle" role="tablist" aria-label="Input mode">
+      <button class="mode-toggle__btn is-active" id="modeUrlBtn" role="tab" aria-selected="true">Link</button>
+      <button class="mode-toggle__btn" id="modeTextBtn" role="tab" aria-selected="false">Pasted text</button>
+    </div>
+
+    <div class="intake__field" id="urlField">
+      <label for="urlInput">Listing URL</label>
+      <input type="url" id="urlInput" placeholder="https://www.cars.com/vehicledetail/…" autocomplete="off">
+      <p class="field-hint">Works best on public listings — no login walls (Cars.com, CarGurus, AutoTrader, Craigslist, dealer sites).</p>
+    </div>
+
+    <div class="intake__field is-hidden" id="textField">
+      <label for="textInput">Listing details</label>
+      <textarea id="textInput" rows="7" placeholder="Paste the title, price, mileage, description — anything the seller wrote."></textarea>
+    </div>
+
+    <button class="run-btn" id="runBtn">
+      <span class="run-btn__label">Run inspection</span>
+      <span class="run-btn__spinner" aria-hidden="true"></span>
+    </button>
+
+    <p class="error-msg is-hidden" id="errorMsg"></p>
+  </section>
+
+  <section class="results is-hidden" id="results">
+
+    <div class="carousel is-hidden" id="carousel">
+      <div class="carousel__frame">
+        <img class="carousel__img" id="carouselImg" alt="Listing photo">
+        <button class="carousel__arrow carousel__arrow--prev" id="carouselPrev" aria-label="Previous photo">‹</button>
+        <button class="carousel__arrow carousel__arrow--next" id="carouselNext" aria-label="Next photo">›</button>
+        <span class="carousel__count" id="carouselCount"></span>
+      </div>
+      <div class="carousel__dots" id="carouselDots"></div>
+    </div>
+
+    <div class="meter-block">
+      <svg class="meter" viewBox="0 0 240 140" aria-hidden="true">
+        <path class="meter__track" d="M 20 120 A 100 100 0 0 1 220 120" />
+        <path class="meter__zone meter__zone--bad" d="M 20 120 A 100 100 0 0 1 76 33" />
+        <path class="meter__zone meter__zone--mid" d="M 76 33 A 100 100 0 0 1 164 33" />
+        <path class="meter__zone meter__zone--good" d="M 164 33 A 100 100 0 0 1 220 120" />
+        <line class="meter__needle" id="meterNeedle" x1="120" y1="120" x2="120" y2="30" />
+        <circle class="meter__hub" cx="120" cy="120" r="7" />
+      </svg>
+      <div class="meter-block__readout">
+        <span class="meter-block__score" id="scoreNum">–</span>
+        <span class="meter-block__of">/ 10</span>
+      </div>
+      <span class="meter-block__label">Deal meter</span>
+    </div>
+
+    <div class="spec-grid" id="specGrid"></div>
+
+    <div class="finding-cols">
+      <div class="finding-col">
+        <h2 class="finding-col__head finding-col__head--bad">Red flags</h2>
+        <ul class="finding-list" id="redFlagsList"></ul>
+      </div>
+      <div class="finding-col">
+        <h2 class="finding-col__head finding-col__head--good">Checks out</h2>
+        <ul class="finding-list" id="goodSignalsList"></ul>
+      </div>
+    </div>
+
+    <div class="notes">
+      <span class="notes__label">Inspector's notes</span>
+      <p id="summaryText"></p>
+    </div>
+
+  </section>
+
+</div>
+
+<script src="config.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
