@@ -24,7 +24,6 @@ car-listing-analyzer/
 ├── app.py                 # Flask app: serves the page, calls Gemini via /api/analyze
 ├── requirements.txt        # Python dependencies
 ├── .env                    # Real GEMINI_API_KEY (gitignored, you create this)
-├── .env.example             # Template showing what .env needs
 ├── .gitignore
 ├── templates/
 │   └── index.html          # Page markup (Jinja template)
