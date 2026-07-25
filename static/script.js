@@ -1,59 +1,9 @@
 // ============================================================
-// CONFIG
-// GEMINI_API_KEY comes from config.js (gitignored, loaded via a
-// separate <script> tag in index.html before this file). This
-// keeps the key out of your Git repo. It's still visible to
-// anyone who views this site's source once it's live — that's
-// unavoidable on a backend-less static site — so keep the key's
-// quota low and rotate/revoke it after your demo.
+// This file no longer talks to Gemini directly, and holds no
+// API key at all. It calls our own Flask backend (/api/analyze),
+// which holds the real key server-side.
 // ============================================================
-const MODEL = "gemini-3.6-flash";
-const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/interactions";
-
-// ============================================================
-// Schema the model must fill in
-// ============================================================
-const RESPONSE_SCHEMA = {
-  type: "object",
-  properties: {
-    extracted_details: {
-      type: "object",
-      properties: {
-        year: { type: "string", description: "Model year, or 'Unknown'" },
-        make: { type: "string" },
-        model: { type: "string" },
-        mileage: { type: "string", description: "e.g. '89,000 mi', or 'Not listed'" },
-        price: { type: "string", description: "e.g. '$11,500', or 'Not listed'" },
-        title_status: { type: "string", description: "e.g. 'Clean', 'Salvage', 'Not mentioned'" }
-      },
-      required: ["year", "make", "model", "mileage", "price", "title_status"]
-    },
-    red_flags: {
-      type: "array",
-      items: { type: "string" },
-      description: "Concerning phrases, missing info, scam patterns, or condition issues. Empty array if none found."
-    },
-    positive_signals: {
-      type: "array",
-      items: { type: "string" },
-      description: "Things that check out or work in the buyer's favor. Empty array if none found."
-    },
-    deal_score: {
-      type: "integer",
-      description: "1 (bad deal / avoid) to 10 (excellent deal), based on price vs. condition vs. transparency"
-    },
-    summary: {
-      type: "string",
-      description: "2-3 sentence plain-language verdict for the buyer"
-    },
-    image_urls: {
-      type: "array",
-      items: { type: "string" },
-      description: "Direct URLs to the listing's photos, largest/full-size version available (not tiny thumbnails), in the order they appear on the page. Empty array if the listing has no photos or none could be found."
-    }
-  },
-  required: ["extracted_details", "red_flags", "positive_signals", "deal_score", "summary", "image_urls"]
-};
+const ANALYZE_ENDPOINT = "/api/analyze";
 
 // ============================================================
 // DOM refs
@@ -115,54 +65,7 @@ function hideError() {
 }
 
 // ============================================================
-// Build the request body for either mode
-// ============================================================
-function buildRequestBody(value) {
-  const basePrompt = `You are inspecting a used car listing for a prospective buyer. Read the listing carefully and:
-- Extract the key facts (year, make, model, mileage, price, title status). If something isn't stated, say so rather than guessing.
-- Identify red flags: vague descriptions, missing history/title info, suspicious pricing (too good to be true), pressure tactics, common used-car scam phrasing, or condition concerns.
-- Identify positive signals: things that build buyer confidence (clean title, documented maintenance, reasonable pricing, detailed condition disclosure, etc).
-- Give a deal_score from 1-10 weighing price, condition, and transparency together.
-- Write a short, plain-language summary a non-expert buyer can act on.
-- If the listing page includes photos, pull out their direct image URLs (largest size available, not thumbnails) in image_urls. If you can't find any usable image URLs, return an empty array — don't invent or guess URLs.`;
-
-  const body = {
-    model: MODEL,
-    response_format: {
-      type: "text",
-      mime_type: "application/json",
-      schema: RESPONSE_SCHEMA
-    }
-  };
-
-  if (mode === "url") {
-    body.input = `${basePrompt}\n\nThe listing is at this URL: ${value}`;
-    body.tools = [{ type: "url_context" }];
-  } else {
-    body.input = `${basePrompt}\n\nListing text:\n"""\n${value}\n"""`;
-  }
-
-  return body;
-}
-
-// ============================================================
-// Extract the JSON text out of the Interactions API steps array
-// ============================================================
-function extractOutputText(interaction) {
-  if (interaction.output_text) return interaction.output_text;
-
-  const steps = interaction.steps || [];
-  for (const step of steps) {
-    if (step.type === "model_output" && Array.isArray(step.content)) {
-      const textBlock = step.content.find((c) => c.type === "text");
-      if (textBlock) return textBlock.text;
-    }
-  }
-  throw new Error("No text output found in response.");
-}
-
-// ============================================================
-// Carousel — shows listing photos when the model finds any.
+// Carousel — shows listing photos when the backend finds any.
 // Broken images (hotlink-blocked, expired, etc.) are silently
 // dropped rather than shown as broken-image icons.
 // ============================================================
@@ -206,8 +109,6 @@ function showCarouselImage(index) {
   });
 }
 
-// If a photo URL fails to load (hotlink protection, expired link,
-// bad extraction), drop it from the set and move on.
 carouselImg.addEventListener("error", () => {
   if (carouselImages.length === 0) return;
   carouselImages.splice(carouselIndex, 1);
@@ -228,13 +129,11 @@ carouselNext.addEventListener("click", () => showCarouselImage(carouselIndex + 1
 function renderResults(data) {
   setupCarousel(data.image_urls);
 
-  // Deal meter: score 1-10 → needle angle -90deg (bad) to +90deg (good)
   const score = Math.max(1, Math.min(10, Number(data.deal_score) || 1));
   const angle = -90 + ((score - 1) / 9) * 180;
   document.getElementById("meterNeedle").style.transform = `rotate(${angle}deg)`;
   document.getElementById("scoreNum").textContent = score;
 
-  // Spec grid
   const specs = data.extracted_details || {};
   const specOrder = [
     ["Year", specs.year],
@@ -253,11 +152,9 @@ function renderResults(data) {
     specGrid.appendChild(el);
   });
 
-  // Red flags / positive signals
   fillList("redFlagsList", data.red_flags, "No red flags surfaced.");
   fillList("goodSignalsList", data.positive_signals, "Nothing stood out yet.");
 
-  // Summary
   document.getElementById("summaryText").textContent = data.summary || "";
 
   results.classList.remove("is-hidden");
@@ -288,7 +185,7 @@ function escapeHtml(str) {
 }
 
 // ============================================================
-// Main action
+// Main action — calls our own Flask backend
 // ============================================================
 async function runInspection() {
   hideError();
@@ -306,32 +203,23 @@ async function runInspection() {
       return;
     }
   }
-  if (typeof GEMINI_API_KEY === "undefined" || GEMINI_API_KEY === "YOUR_API_KEY_HERE") {
-    showError("Add your Gemini API key to config.js before running this.");
-    return;
-  }
 
   setLoading(true);
 
   try {
-    const res = await fetch(ENDPOINT, {
+    const res = await fetch(ANALYZE_ENDPOINT, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": GEMINI_API_KEY
-      },
-      body: JSON.stringify(buildRequestBody(value))
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode, value })
     });
 
+    const data = await res.json();
+
     if (!res.ok) {
-      const errBody = await res.text();
-      throw new Error(`API error ${res.status}: ${errBody.slice(0, 200)}`);
+      throw new Error(data.error || `Request failed (${res.status})`);
     }
 
-    const interaction = await res.json();
-    const rawText = extractOutputText(interaction);
-    const data = JSON.parse(rawText);
-    console.log("Parsed response from Gemini:", data);
+    console.log("Parsed response from backend:", data);
     renderResults(data);
   } catch (err) {
     console.error(err);
