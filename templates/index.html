@@ -19,7 +19,7 @@
       <span class="report-no" id="reportNo">NO. 000000</span>
     </div>
     <h1>Know before you buy.</h1>
-    <p class="dek">Paste a listing link or the listing text. The inspector reads it, flags what's wrong, and tells you if it's a fair deal.</p>
+    <p class="dek">Paste a listing link, the listing text, or a screenshot. The inspector reads it, flags what's wrong, and tells you if it's a fair deal.</p>
   </header>
 
   <section class="intake" id="intake">
@@ -42,9 +42,16 @@
     </div>
 
     <div class="intake__field is-hidden" id="imageField">
-      <label for="imageInput">Listing screenshot</label>
-      <input type="file" id="imageInput" accept="image/png, image/jpeg, image/webp">
-      <p class="field-hint">Use this for sites that block link access (Edmunds, etc). Screenshot the full listing — title, price, mileage, description.</p>
+      <label for="imageInput">Listing screenshots</label>
+      <div class="image-drop" id="imageDrop" tabindex="0" role="button" aria-label="Add listing screenshots">
+        <div class="image-drop__grid is-hidden" id="imageGrid"></div>
+        <div class="image-drop__placeholder" id="imageDropPlaceholder">
+          Click to browse, drag files here, or paste screenshots (Ctrl/Cmd+V) — add as many as you need
+        </div>
+      </div>
+      <button type="button" class="image-drop__clear-all is-hidden" id="imageClearAllBtn">Clear all screenshots</button>
+      <input type="file" id="imageInput" class="visually-hidden" accept="image/png, image/jpeg, image/webp" multiple>
+      <p class="field-hint">Use this for sites that block link access (Edmunds, etc). Add one screenshot per section of the listing — title/price, description, photos — up to 6.</p>
     </div>
 
     <button class="run-btn" id="runBtn">

@@ -98,28 +98,73 @@ def index():
     return render_template("index.html")
 
 
+ALLOWED_IMAGE_MIME_TYPES = {"image/png", "image/jpeg", "image/webp"}
+MAX_IMAGES_PER_REQUEST = 6
+
+IMAGE_MODE_NOTE = (
+    "\n\nThe listing is shown in the attached screenshot(s), not a live "
+    "webpage — read all visible text and details directly from the "
+    "image(s) (title, price, mileage, description, condition notes). If "
+    "there is more than one screenshot, they are different parts of the "
+    "same listing (e.g. one for the header/price, one for the "
+    "description, one for photos) — combine what you find across all of "
+    "them into a single report rather than treating them as separate "
+    "listings. You have no way to pull separate photo URLs from a "
+    "screenshot, so always return image_urls as an empty array for this "
+    "mode."
+)
+
+
 @app.route("/api/analyze", methods=["POST"])
 def analyze():
     payload = request.get_json(silent=True) or {}
     mode = payload.get("mode")
-    value = (payload.get("value") or "").strip()
 
-    if mode not in ("url", "text"):
-        return jsonify({"error": "mode must be 'url' or 'text'"}), 400
-    if not value:
-        return jsonify({"error": "value is required"}), 400
+    if mode not in ("url", "text", "image"):
+        return jsonify({"error": "mode must be 'url', 'text', or 'image'"}), 400
 
-    if mode == "url":
-        input_text = f"{BASE_PROMPT}\n\nThe listing is at this URL: {value}"
-        request_kwargs = {"tools": [{"type": "url_context"}]}
-    else:
-        input_text = f'{BASE_PROMPT}\n\nListing text:\n"""\n{value}\n"""'
+    if mode == "image":
+        images = payload.get("images")
+
+        if not isinstance(images, list) or not images:
+            return jsonify({"error": "images (a non-empty list) is required"}), 400
+        if len(images) > MAX_IMAGES_PER_REQUEST:
+            return jsonify({
+                "error": f"Too many screenshots — max {MAX_IMAGES_PER_REQUEST} per inspection."
+            }), 400
+
+        input_content = [{"type": "text", "text": f"{BASE_PROMPT}{IMAGE_MODE_NOTE}"}]
+        for i, image in enumerate(images):
+            image_data = (image.get("value") or "").strip() if isinstance(image, dict) else ""
+            mime_type = image.get("mimeType") or "" if isinstance(image, dict) else ""
+
+            if not image_data:
+                return jsonify({"error": f"Screenshot {i + 1} is missing image data"}), 400
+            if mime_type not in ALLOWED_IMAGE_MIME_TYPES:
+                return jsonify({
+                    "error": f"Screenshot {i + 1} has an unsupported type: "
+                             f"{mime_type or 'unknown'}. Use PNG, JPEG, or WEBP."
+                }), 400
+
+            input_content.append({"type": "image", "data": image_data, "mime_type": mime_type})
+
         request_kwargs = {}
+    else:
+        value = (payload.get("value") or "").strip()
+        if not value:
+            return jsonify({"error": "value is required"}), 400
+
+        if mode == "url":
+            input_content = f"{BASE_PROMPT}\n\nThe listing is at this URL: {value}"
+            request_kwargs = {"tools": [{"type": "url_context"}]}
+        else:
+            input_content = f'{BASE_PROMPT}\n\nListing text:\n"""\n{value}\n"""'
+            request_kwargs = {}
 
     try:
         interaction = client.interactions.create(
             model=MODEL,
-            input=input_text,
+            input=input_content,
             response_format={
                 "type": "text",
                 "mime_type": "application/json",
