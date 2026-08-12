@@ -1,6 +1,6 @@
 # Know Before You Buy — Car Listing Inspector
 
-Paste a used car listing (link or text) and get back a structured inspection report: extracted specs, red flags, positive signals, a 1–10 deal score, and a plain-language verdict — powered by the Gemini API.
+Paste a used car listing (link, text, or one or more screenshots) and get back a structured inspection report: extracted specs, red flags, positive signals, a 1–10 deal score, and a plain-language verdict — powered by the Gemini API.
 
 Built at [Gemini Student Build — Portland](https://events.mlh.com/events/14512-gemini-student-build-portland), a hackathon hosted by Google and [MLH](https://mlh.io).
 
@@ -8,12 +8,15 @@ Built at [Gemini Student Build — Portland](https://events.mlh.com/events/14512
 
 ## Features
 
-- **Two input modes** — paste a listing URL or paste the raw listing text.
+- **Three input modes** — paste a listing URL, paste the raw listing text, or drop in one or more screenshots.
 - **Gemini `url_context` tool** — for URL mode, Gemini fetches the listing page itself server-side. No scraping code, no CORS issues.
+- **Screenshot mode** — for listings behind a login wall or on sites that block `url_context` (Edmunds, etc.), click to browse, drag files in, or paste (Ctrl/Cmd+V) screenshots. Add up to 6 — e.g. one for the header/price, one for the description — and Gemini combines them into a single report.
 - **Structured output** — a JSON schema forces a consistent response every time: specs, red flags, positive signals, score, summary, photo URLs.
 - **Deal meter, spec grid, and flag lists** rendered as a printable-style "vehicle condition report."
 
 ![Sample inspection report](assets/screenshot-report.png)
+
+![Screenshot input mode](assets/screenshot-input-mode.png)
 
 ## Tech stack
 
@@ -25,6 +28,7 @@ Built at [Gemini Student Build — Portland](https://events.mlh.com/events/14512
 - The Flask backend (`app.py`) holds the Gemini API key and calls the Interactions API's `client.interactions.create()`.
 - For URL input, Gemini's built-in `url_context` tool fetches the listing page server-side.
 - For pasted text, the listing content goes straight into the prompt.
+- For screenshots, the frontend reads each file as base64 and sends them as inline image content blocks — Gemini reads the listing details directly off the image(s), no OCR step of our own required.
 - A JSON schema forces a consistent, structured response every time (score, specs, flags, summary, photo URLs).
 - The frontend (`static/script.js`) only talks to our own `/api/analyze` route — it never sees the Gemini API key.
 
@@ -85,8 +89,9 @@ car-listing-inspector/
 
 ## Known limitations
 
-- Works best on public, login-free listings (Craigslist confirmed working; some sites like Cars.com block `url_context` outright — use "Pasted text" mode as a fallback).
-- The photo carousel only populates when Gemini can extract usable image URLs from the page, which isn't guaranteed for every listing.
+- Works best on public, login-free listings (Craigslist confirmed working; some sites like Cars.com block `url_context` outright — use "Pasted text" or "Screenshot" mode as a fallback).
+- The photo carousel only populates when Gemini can extract usable image URLs from the page, which isn't guaranteed for every listing. Screenshot mode never populates it, since there's no page to pull photo URLs from.
+- Screenshots are capped at 8 MB each, must be PNG, JPEG, or WEBP, and up to 6 per inspection.
 
 ## License
 

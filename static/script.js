@@ -10,10 +10,17 @@ const ANALYZE_ENDPOINT = "/api/analyze";
 // ============================================================
 const modeUrlBtn = document.getElementById("modeUrlBtn");
 const modeTextBtn = document.getElementById("modeTextBtn");
+const modeImageBtn = document.getElementById("modeImageBtn");
 const urlField = document.getElementById("urlField");
 const textField = document.getElementById("textField");
+const imageField = document.getElementById("imageField");
 const urlInput = document.getElementById("urlInput");
 const textInput = document.getElementById("textInput");
+const imageInput = document.getElementById("imageInput");
+const imageDrop = document.getElementById("imageDrop");
+const imageGrid = document.getElementById("imageGrid");
+const imageDropPlaceholder = document.getElementById("imageDropPlaceholder");
+const imageClearAllBtn = document.getElementById("imageClearAllBtn");
 const runBtn = document.getElementById("runBtn");
 const errorMsg = document.getElementById("errorMsg");
 const results = document.getElementById("results");
@@ -30,23 +37,184 @@ let mode = "url";
 let carouselImages = [];
 let carouselIndex = 0;
 
+// Screenshot mode state — a list of { dataUrl } objects, one per
+// screenshot. dataUrl is the full "data:image/png;base64,iVBORw0K..."
+// string; parsed apart into mime type + base64 payload at submit time.
+let images = [];
+
+const ACCEPTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"];
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8 MB per screenshot
+const MAX_IMAGES = 6; // per inspection
+
 // ============================================================
 // Mode toggle
 // ============================================================
 function setMode(next) {
   mode = next;
   const isUrl = mode === "url";
+  const isText = mode === "text";
+  const isImage = mode === "image";
+
   modeUrlBtn.classList.toggle("is-active", isUrl);
-  modeTextBtn.classList.toggle("is-active", !isUrl);
+  modeTextBtn.classList.toggle("is-active", isText);
+  modeImageBtn.classList.toggle("is-active", isImage);
   modeUrlBtn.setAttribute("aria-selected", String(isUrl));
-  modeTextBtn.setAttribute("aria-selected", String(!isUrl));
+  modeTextBtn.setAttribute("aria-selected", String(isText));
+  modeImageBtn.setAttribute("aria-selected", String(isImage));
+
   urlField.classList.toggle("is-hidden", !isUrl);
-  textField.classList.toggle("is-hidden", isUrl);
+  textField.classList.toggle("is-hidden", !isText);
+  imageField.classList.toggle("is-hidden", !isImage);
+
   hideError();
 }
 
 modeUrlBtn.addEventListener("click", () => setMode("url"));
 modeTextBtn.addEventListener("click", () => setMode("text"));
+modeImageBtn.addEventListener("click", () => setMode("image"));
+
+// ============================================================
+// Screenshot intake — click to browse, drag-and-drop, or paste.
+// Supports multiple screenshots per listing (e.g. one for the
+// header/price, one for the description, one for photos).
+// ============================================================
+function addImageFiles(fileList) {
+  const files = Array.from(fileList || []).filter((f) => f && f.type.startsWith("image/"));
+  if (files.length === 0) return;
+
+  const room = MAX_IMAGES - images.length;
+  if (room <= 0) {
+    showError(`You can add up to ${MAX_IMAGES} screenshots per inspection.`);
+    return;
+  }
+
+  const toAdd = files.slice(0, room);
+  if (files.length > toAdd.length) {
+    showError(`Only added ${toAdd.length} — max ${MAX_IMAGES} screenshots per inspection.`);
+  } else {
+    hideError();
+  }
+
+  toAdd.forEach(readAndAddImage);
+}
+
+function readAndAddImage(file) {
+  if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+    showError("Screenshots must be PNG, JPEG, or WEBP images.");
+    return;
+  }
+  if (file.size > MAX_IMAGE_BYTES) {
+    showError("One of those images is too large — screenshots must be under 8 MB each.");
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    images.push({ dataUrl: reader.result });
+    renderImageGrid();
+  };
+  reader.onerror = () => showError("Couldn't read one of those files — try again.");
+  reader.readAsDataURL(file);
+}
+
+function removeImageAt(index) {
+  images.splice(index, 1);
+  renderImageGrid();
+}
+
+function clearImages() {
+  images = [];
+  imageInput.value = "";
+  renderImageGrid();
+}
+
+function renderImageGrid() {
+  imageGrid.innerHTML = "";
+
+  const hasImages = images.length > 0;
+  imageGrid.classList.toggle("is-hidden", !hasImages);
+  imageDropPlaceholder.classList.toggle("is-hidden", hasImages);
+  imageClearAllBtn.classList.toggle("is-hidden", !hasImages);
+
+  images.forEach((img, i) => {
+    const thumb = document.createElement("div");
+    thumb.className = "image-thumb";
+
+    const thumbImg = document.createElement("img");
+    thumbImg.src = img.dataUrl;
+    thumbImg.alt = `Screenshot ${i + 1}`;
+    thumb.appendChild(thumbImg);
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "image-thumb__remove";
+    removeBtn.setAttribute("aria-label", `Remove screenshot ${i + 1}`);
+    removeBtn.textContent = "×";
+    removeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      removeImageAt(i);
+    });
+    thumb.appendChild(removeBtn);
+
+    imageGrid.appendChild(thumb);
+  });
+}
+
+imageDrop.addEventListener("click", () => imageInput.click());
+imageDrop.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    imageInput.click();
+  }
+});
+
+imageInput.addEventListener("change", () => {
+  addImageFiles(imageInput.files);
+  imageInput.value = ""; // allow re-selecting the same file(s) later
+});
+
+imageClearAllBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  clearImages();
+});
+
+["dragenter", "dragover"].forEach((evt) => {
+  imageDrop.addEventListener(evt, (e) => {
+    e.preventDefault();
+    imageDrop.classList.add("is-dragover");
+  });
+});
+
+["dragleave", "drop"].forEach((evt) => {
+  imageDrop.addEventListener(evt, (e) => {
+    e.preventDefault();
+    imageDrop.classList.remove("is-dragover");
+  });
+});
+
+imageDrop.addEventListener("drop", (e) => {
+  addImageFiles(e.dataTransfer.files);
+});
+
+// Paste one or more screenshots straight from the clipboard while in
+// screenshot mode.
+window.addEventListener("paste", (e) => {
+  if (mode !== "image") return;
+  const items = (e.clipboardData || window.clipboardData)?.items;
+  if (!items) return;
+
+  const files = [];
+  for (const item of items) {
+    if (item.kind === "file" && item.type.startsWith("image/")) {
+      const file = item.getAsFile();
+      if (file) files.push(file);
+    }
+  }
+  if (files.length > 0) {
+    e.preventDefault();
+    addImageFiles(files);
+  }
+});
 
 // ============================================================
 // Report number — cosmetic, just for the inspection-report feel
@@ -190,18 +358,39 @@ function escapeHtml(str) {
 async function runInspection() {
   hideError();
 
-  const value = mode === "url" ? urlInput.value.trim() : textInput.value.trim();
-  if (!value) {
-    showError(mode === "url" ? "Paste a listing URL first." : "Paste some listing text first.");
-    return;
-  }
-  if (mode === "url") {
-    try {
-      new URL(value);
-    } catch {
-      showError("That doesn't look like a valid URL.");
+  let requestBody;
+
+  if (mode === "image") {
+    if (images.length === 0) {
+      showError("Add at least one screenshot first.");
       return;
     }
+    // Each dataUrl looks like "data:image/png;base64,iVBORw0K..."
+    const parsedImages = [];
+    for (const img of images) {
+      const match = /^data:([^;]+);base64,(.*)$/s.exec(img.dataUrl);
+      if (!match) {
+        showError("Couldn't read one of those screenshots — try re-adding it.");
+        return;
+      }
+      parsedImages.push({ mimeType: match[1], value: match[2] });
+    }
+    requestBody = { mode, images: parsedImages };
+  } else {
+    const value = mode === "url" ? urlInput.value.trim() : textInput.value.trim();
+    if (!value) {
+      showError(mode === "url" ? "Paste a listing URL first." : "Paste some listing text first.");
+      return;
+    }
+    if (mode === "url") {
+      try {
+        new URL(value);
+      } catch {
+        showError("That doesn't look like a valid URL.");
+        return;
+      }
+    }
+    requestBody = { mode, value };
   }
 
   setLoading(true);
@@ -210,7 +399,7 @@ async function runInspection() {
     const res = await fetch(ANALYZE_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode, value })
+      body: JSON.stringify(requestBody)
     });
 
     const data = await res.json();
@@ -225,6 +414,8 @@ async function runInspection() {
     console.error(err);
     if (mode === "url") {
       showError("Couldn't read that link. It may be private or blocked. Try the \"Pasted text\" option instead.");
+    } else if (mode === "image") {
+      showError("Something went wrong reading that screenshot. Check the console for details and try again.");
     } else {
       showError("Something went wrong analyzing that listing. Check the console for details and try again.");
     }
