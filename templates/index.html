@@ -27,6 +27,7 @@
     <div class="mode-toggle" role="tablist" aria-label="Input mode">
       <button class="mode-toggle__btn is-active" id="modeUrlBtn" role="tab" aria-selected="true">Link</button>
       <button class="mode-toggle__btn" id="modeTextBtn" role="tab" aria-selected="false">Pasted text</button>
+      <button class="mode-toggle__btn" id="modeImageBtn" role="tab" aria-selected="false">Screenshot</button>
     </div>
 
     <div class="intake__field" id="urlField">
@@ -38,6 +39,12 @@
     <div class="intake__field is-hidden" id="textField">
       <label for="textInput">Listing details</label>
       <textarea id="textInput" rows="7" placeholder="Paste the title, price, mileage, description — anything the seller wrote."></textarea>
+    </div>
+
+    <div class="intake__field is-hidden" id="imageField">
+      <label for="imageInput">Listing screenshot</label>
+      <input type="file" id="imageInput" accept="image/png, image/jpeg, image/webp">
+      <p class="field-hint">Use this for sites that block link access (Edmunds, etc). Screenshot the full listing — title, price, mileage, description.</p>
     </div>
 
     <button class="run-btn" id="runBtn">

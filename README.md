@@ -1,38 +1,32 @@
 # Know Before You Buy — Car Listing Inspector
 
-Paste a car listing link or its text, and get back a structured
-inspection report: extracted details, red flags, positive signals, a
-1–10 deal score, and a plain-language summary. Powered by the Gemini
-API.
+Paste a used car listing (link or text) and get back a structured inspection report: extracted specs, red flags, positive signals, a 1–10 deal score, and a plain-language verdict — powered by the Gemini API.
+
+Built at [Gemini Student Build — Portland](https://events.mlh.com/events/14512-gemini-student-build-portland), a hackathon hosted by Google and [MLH](https://mlh.io).
+
+![Landing page](assets/screenshot-landing.png)
+
+## Features
+
+- **Two input modes** — paste a listing URL or paste the raw listing text.
+- **Gemini `url_context` tool** — for URL mode, Gemini fetches the listing page itself server-side. No scraping code, no CORS issues.
+- **Structured output** — a JSON schema forces a consistent response every time: specs, red flags, positive signals, score, summary, photo URLs.
+- **Deal meter, spec grid, and flag lists** rendered as a printable-style "vehicle condition report."
+
+![Sample inspection report](assets/screenshot-report.png)
+
+## Tech stack
+
+- **Backend:** Python, Flask, [`google-genai`](https://pypi.org/project/google-genai/) (Gemini API)
+- **Frontend:** vanilla HTML/CSS/JS — no framework, no build step
 
 ## How it works
 
-- The Flask backend (`app.py`) holds the Gemini API key and calls the
-  Interactions API's `client.interactions.create()`.
-- For URL input, Gemini's built-in `url_context` tool fetches the
-  listing page server-side (no scraping code needed, no CORS issues).
+- The Flask backend (`app.py`) holds the Gemini API key and calls the Interactions API's `client.interactions.create()`.
+- For URL input, Gemini's built-in `url_context` tool fetches the listing page server-side.
 - For pasted text, the listing content goes straight into the prompt.
-- A JSON schema forces a consistent, structured response every time
-  (score, specs, flags, summary, photo URLs).
-- The frontend (`static/script.js`) only talks to our own
-  `/api/analyze` route — it never sees the Gemini API key.
-
-## Project structure
-
-```
-car-listing-analyzer/
-├── app.py                 # Flask app: serves the page, calls Gemini via /api/analyze
-├── requirements.txt        # Python dependencies
-├── .env                    # Real GEMINI_API_KEY (gitignored, you create this)
-├── .gitignore
-├── templates/
-│   └── index.html          # Page markup (Jinja template)
-└── static/
-    ├── style.css           # Styling
-    └── script.js           # Frontend logic — calls /api/analyze, renders the report
-```
-
-**Request flow:**
+- A JSON schema forces a consistent, structured response every time (score, specs, flags, summary, photo URLs).
+- The frontend (`static/script.js`) only talks to our own `/api/analyze` route — it never sees the Gemini API key.
 
 ```
 Browser (script.js)
@@ -54,14 +48,16 @@ Structured JSON response
 Flask returns parsed JSON → Browser renders the report
 ```
 
-## Setup
+## Getting started
 
-1. Install dependencies:
+1. Clone the repo and install dependencies:
    ```bash
-   pip install -r requirements.txt --break-system-packages
+   git clone https://github.com/xqetsia/car-listing-inspector.git
+   cd car-listing-inspector
+   pip install -r requirements.txt
    ```
 
-2. Create a `.env` file in the project root (see `.env.example`):
+2. Create a `.env` file in the project root with your [Gemini API key](https://aistudio.google.com/apikey):
    ```
    GEMINI_API_KEY=your-actual-key-here
    ```
@@ -73,11 +69,25 @@ Flask returns parsed JSON → Browser renders the report
 
 4. Visit `http://localhost:5000`
 
-## Notes
+## Project structure
 
-- Works best on public, login-free listings (Craigslist confirmed
-  working; some sites like Cars.com block `url_context` outright — use
-  the "Pasted text" mode as a fallback).
-- Photo carousel only populates when Gemini can extract usable image
-  URLs from the page — not guaranteed on every listing (see
-  `notes-pain-points.md` for details on this limitation).
+```
+car-listing-inspector/
+├── app.py                  # Flask app: serves the page, calls Gemini via /api/analyze
+├── requirements.txt         # Python dependencies
+├── .env                     # Your GEMINI_API_KEY (gitignored, you create this)
+├── templates/
+│   └── index.html           # Page markup (Jinja template)
+└── static/
+    ├── style.css             # Styling
+    └── script.js              # Frontend logic — calls /api/analyze, renders the report
+```
+
+## Known limitations
+
+- Works best on public, login-free listings (Craigslist confirmed working; some sites like Cars.com block `url_context` outright — use "Pasted text" mode as a fallback).
+- The photo carousel only populates when Gemini can extract usable image URLs from the page, which isn't guaranteed for every listing.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
