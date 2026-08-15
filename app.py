@@ -1,5 +1,6 @@
 import os
 import json
+from functools import lru_cache
 from flask import Flask, render_template, request, jsonify
 from dotenv import load_dotenv
 from google import genai
@@ -93,6 +94,25 @@ def extract_output_text(interaction):
     raise ValueError("No text output found in Gemini response.")
 
 
+@lru_cache(maxsize=256)
+def _cached_gemini_call(model, input_key, kwargs_key):
+    """Cache Gemini calls by (model, input, extra kwargs) so identical
+    requests (same URL/text/screenshots) skip the round-trip."""
+    input_content = json.loads(input_key)
+    request_kwargs = json.loads(kwargs_key)
+    interaction = client.interactions.create(
+        model=model,
+        input=input_content,
+        response_format={
+            "type": "text",
+            "mime_type": "application/json",
+            "schema": RESPONSE_SCHEMA,
+        },
+        **request_kwargs,
+    )
+    return extract_output_text(interaction)
+
+
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -162,17 +182,9 @@ def analyze():
             request_kwargs = {}
 
     try:
-        interaction = client.interactions.create(
-            model=MODEL,
-            input=input_content,
-            response_format={
-                "type": "text",
-                "mime_type": "application/json",
-                "schema": RESPONSE_SCHEMA,
-            },
-            **request_kwargs,
-        )
-        raw_text = extract_output_text(interaction)
+        input_key = json.dumps(input_content, sort_keys=True)
+        kwargs_key = json.dumps(request_kwargs, sort_keys=True)
+        raw_text = _cached_gemini_call(MODEL, input_key, kwargs_key)
         result = json.loads(raw_text)
         return jsonify(result)
     except Exception as exc:  # noqa: BLE001 — surface any Gemini/parsing error to the client
@@ -180,5 +192,7 @@ def analyze():
         return jsonify({"error": str(exc)}), 502
 
 
+
+
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5001, threaded=True)
