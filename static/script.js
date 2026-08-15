@@ -50,6 +50,8 @@ const MAX_IMAGES = 6; // per inspection
 // Mode toggle
 // ============================================================
 function setMode(next) {
+  if (next === mode) return; // re-clicking the active tab shouldn't clear anything
+
   mode = next;
   const isUrl = mode === "url";
   const isText = mode === "text";
@@ -65,6 +67,15 @@ function setMode(next) {
   urlField.classList.toggle("is-hidden", !isUrl);
   textField.classList.toggle("is-hidden", !isText);
   imageField.classList.toggle("is-hidden", !isImage);
+
+  // Switching input source — clear whatever was entered/found under the
+  // previous one, including any report still on screen, so nothing stale
+  // carries over between sources.
+  urlInput.value = "";
+  textInput.value = "";
+  clearImages();
+  results.classList.add("is-hidden");
+  setupCarousel([]);
 
   hideError();
 }
@@ -98,6 +109,33 @@ function addImageFiles(fileList) {
   toAdd.forEach(readAndAddImage);
 }
 
+const MAX_IMAGE_DIMENSION = 1600; // px, longest side
+const IMAGE_JPEG_QUALITY = 0.8;
+
+function resizeImage(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = () => { img.src = reader.result; };
+    reader.onerror = () => reject(new Error("read failed"));
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION) {
+        const scale = MAX_IMAGE_DIMENSION / Math.max(width, height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", IMAGE_JPEG_QUALITY));
+    };
+    img.onerror = () => reject(new Error("decode failed"));
+    reader.readAsDataURL(file);
+  });
+}
+
 function readAndAddImage(file) {
   if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
     showError("Screenshots must be PNG, JPEG, or WEBP images.");
@@ -108,13 +146,12 @@ function readAndAddImage(file) {
     return;
   }
 
-  const reader = new FileReader();
-  reader.onload = () => {
-    images.push({ dataUrl: reader.result });
-    renderImageGrid();
-  };
-  reader.onerror = () => showError("Couldn't read one of those files — try again.");
-  reader.readAsDataURL(file);
+  resizeImage(file)
+    .then((dataUrl) => {
+      images.push({ dataUrl });
+      renderImageGrid();
+    })
+    .catch(() => showError("Couldn't read one of those files — try again."));
 }
 
 function removeImageAt(index) {
